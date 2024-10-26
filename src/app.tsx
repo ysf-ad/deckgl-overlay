@@ -19,22 +19,37 @@ const App = () => {
   const [trafficPoints, setTrafficPoints] = useState<number[][]>([]); // Store random traffic points
 
   useEffect(() => {
-  fetch(DATA_URL)
-    .then(res => res.json())
-    .then(data => {
-      setData(data as GeoJSON);
-      const rawIntersections = findIntersections(data);
-      const filteredIntersections = filterCloseIntersections(rawIntersections, 50); // Filter within 50m
-      setIntersections(filteredIntersections);
+    fetch(DATA_URL)
+      .then(res => res.json())
+      .then(data => {
+        setData(data as GeoJSON);
+        const rawIntersections = findIntersections(data);
+        const filteredIntersections = filterCloseIntersections(rawIntersections, 50); // Filter within 50m
+        setIntersections(filteredIntersections);
 
-      // Generate 2 heavy and 2 moderate traffic points, ensuring they are spaced out by maxDistance
-      const heavyTrafficPoints = generateRandomPoints(data, 2, 300); // Heavy traffic points with 300m spacing
-      const moderateTrafficPoints = generateRandomPoints(data, 2, 150); // Moderate traffic points with 150m spacing
-      setTrafficPoints([...heavyTrafficPoints, ...moderateTrafficPoints]);
-    });
-}, []);
+        // Generate initial traffic points
+        generateTrafficPoints(data);
+      });
+  }, []);
 
-  
+  useEffect(() => {
+    // Set an interval to generate new traffic points every 5 seconds
+    const interval = setInterval(() => {
+      if (data) {
+        console.log('Generating new traffic points at', new Date().toLocaleTimeString());
+        generateTrafficPoints(data);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [data]);
+
+  const generateTrafficPoints = (data: GeoJSON) => {
+    // Generate 2 heavy and 2 moderate traffic points, ensuring they are spaced out by maxDistance
+    const heavyTrafficPoints = generateRandomPoints(data, 2, 300); // Heavy traffic points with 300m spacing
+    const moderateTrafficPoints = generateRandomPoints(data, 2, 150); // Moderate traffic points with 150m spacing
+    setTrafficPoints([...heavyTrafficPoints, ...moderateTrafficPoints]);
+  };
 
   return (
     <APIProvider apiKey={API_KEY}>
@@ -106,8 +121,6 @@ function filterCloseIntersections(points: number[][], minDistance: number) {
 }
 
 // Function to generate random points within the valid road space
-// Function to generate random points within the valid road space
-// Function to generate random points that are not within maxDistance of each other
 function generateRandomPoints(data: GeoJSON, numPoints: number, maxDistance: number): number[][] {
   const coordinates: number[][] = [];
   const randomPoints: number[][] = [];
@@ -137,8 +150,6 @@ function generateRandomPoints(data: GeoJSON, numPoints: number, maxDistance: num
 
   return randomPoints;
 }
-
-
 
 // Function to calculate the traffic color based on the distance from the closest traffic point
 function getTrafficColor(roadCoords: number[], trafficPoints: number[][]) {
@@ -192,20 +203,10 @@ function getDeckGlLayers(data: GeoJSON | null, intersections: number[][], traffi
       id: 'scatterplot-layer',
       data: intersections,
       getPosition: d => d,  // Use the coordinates of the intersections
-      getRadius: 3,  // Adjust marker size
+      getRadius: 3,  // Adjust marker sizes
       getFillColor: [255, 0, 0], // Red markers for intersections
       pickable: true
-    }),
-
-    // ScatterplotLayer for traffic points (just for visualization)
-    // new ScatterplotLayer({
-    //   id: 'traffic-layer',
-    //   data: trafficPoints,
-    //   getPosition: d => d,  // Use the coordinates of the random traffic points
-    //   getRadius: 5,  // Adjust marker size
-    //   getFillColor: [0, 0, 255], // Blue markers for traffic points
-    //   pickable: true
-    // })
+    })
   ];
 }
 
