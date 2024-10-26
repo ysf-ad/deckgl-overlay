@@ -15,43 +15,57 @@ const API_KEY = "AIzaSyBRuzD0vjPUy4w3QIrZ_VODDuN_3yJyz60";
 
 const App = () => {
   const [data, setData] = useState<GeoJSON | null>(null);
-  const [intersections, setIntersections] = useState<number[][]>([]); // Store intersections
-  const [trafficPoints, setTrafficPoints] = useState<number[][]>([]); // Store random traffic points
+  const [intersections, setIntersections] = useState<number[][]>([]);
+  const [trafficPoints, setTrafficPoints] = useState<number[][]>([]);
+  const [totalRoads, setTotalRoads] = useState(0);
+const [totalIntersections, setTotalIntersections] = useState(0);
 
-  useEffect(() => {
-    fetch(DATA_URL)
-      .then(res => res.json())
-      .then(data => {
-        setData(data as GeoJSON);
-        const rawIntersections = findIntersections(data);
-        const filteredIntersections = filterCloseIntersections(rawIntersections, 50); // Filter within 50m
-        setIntersections(filteredIntersections);
+const floatingTextStyle = {
+  position: 'fixed',
+  bottom: '10px',
+  left: '50%',
+  transform: 'translateX(-50%)',
+  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  color: 'white',
+  padding: '10px',
+  borderRadius: '5px',
+  zIndex: 1000,
+  fontSize: '14px',
+  textAlign: 'center',
+};
 
-        // Generate initial traffic points
-        generateTrafficPoints(data);
-      });
-  }, []);
 
-  useEffect(() => {
-    // Set an interval to generate new traffic points every 5 seconds
-    const interval = setInterval(() => {
-      if (data) {
-        console.log('Generating new traffic points at', new Date().toLocaleTimeString());
-        generateTrafficPoints(data);
-      }
-    }, 5000);
 
-    return () => clearInterval(interval);
-  }, [data]);
+useEffect(() => {
+  fetch(DATA_URL)
+    .then(res => res.json())
+    .then(data => {
+      setData(data as GeoJSON);
+      const rawIntersections = findIntersections(data);
+      const filteredIntersections = filterCloseIntersections(rawIntersections, 50);
 
-  const generateTrafficPoints = (data: GeoJSON) => {
-    // Generate 2 heavy and 2 moderate traffic points, ensuring they are spaced out by maxDistance
-    const heavyTrafficPoints = generateRandomPoints(data, 2, 300); // Heavy traffic points with 300m spacing
-    const moderateTrafficPoints = generateRandomPoints(data, 2, 150); // Moderate traffic points with 150m spacing
-    setTrafficPoints([...heavyTrafficPoints, ...moderateTrafficPoints]);
-  };
+      setIntersections(filteredIntersections);
+      setTotalIntersections(filteredIntersections.length);
+
+      // Calculate total number of roads
+      const roadCount = data.features.filter(
+        (feature) => feature.geometry.type === 'LineString'
+      ).length;
+      setTotalRoads(roadCount); // Set total roads count
+
+      // Generate traffic points
+      const heavyTrafficPoints = generateRandomPoints(data, 2, 300);
+      const moderateTrafficPoints = generateRandomPoints(data, 2, 150);
+      setTrafficPoints([...heavyTrafficPoints, ...moderateTrafficPoints]);
+    });
+}, []);
+
+
+  
 
   return (
+    <>
+    
     <APIProvider apiKey={API_KEY}>
       <Map
         defaultCenter={{lat: 43.67, lng: -79.34}}
@@ -62,7 +76,12 @@ const App = () => {
         <DeckGlOverlay layers={getDeckGlLayers(data, intersections, trafficPoints)} />
       </Map>
       <ControlPanel />
+
     </APIProvider>
+      <div style={floatingTextStyle}>
+  Total Roads: {totalRoads} | Total Intersections: {totalIntersections}
+</div>
+    </>
   );
 };
 
@@ -76,9 +95,9 @@ function findIntersections(data: GeoJSON): number[][] {
       feature.geometry.coordinates.forEach(coord => {
         const key = `${coord[0]},${coord[1]}`;
         if (points[key]) {
-          intersections.push(coord); // If the coordinate exists, it's an intersection
+          intersections.push(coord);
         } else {
-          points[key] = coord; // Store coordinate
+          points[key] = coord;
         }
       });
     }
@@ -100,7 +119,7 @@ function haversineDistance([lon1, lat1]: number[], [lon2, lat2]: number[]) {
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in meters
+  return R * c;
 }
 
 // Function to filter intersections within 50m radius
@@ -113,31 +132,30 @@ function filterCloseIntersections(points: number[][], minDistance: number) {
     );
     
     if (!isTooClose) {
-      filtered.push(point); // Add point only if no existing point is within 50 meters
+      filtered.push(point);
     }
   });
 
   return filtered;
 }
 
-// Function to generate random points within the valid road space
+// Function to generate random points that are not within maxDistance of each other, this is for the traffic simulation
 function generateRandomPoints(data: GeoJSON, numPoints: number, maxDistance: number): number[][] {
   const coordinates: number[][] = [];
   const randomPoints: number[][] = [];
 
-  // Collect all road coordinates
   data.features.forEach((feature: Feature) => {
     if (feature.geometry.type === 'LineString') {
       coordinates.push(...feature.geometry.coordinates);
     }
   });
 
-  // Generate random points, ensuring they are not too close to each other
+  
   while (randomPoints.length < numPoints) {
     const randomIndex = Math.floor(Math.random() * coordinates.length);
     const candidatePoint = coordinates[randomIndex];
     
-    // Check if this point is too close to any of the existing points
+    
     const isTooClose = randomPoints.some(existingPoint => 
       haversineDistance(existingPoint, candidatePoint) < maxDistance
     );
@@ -151,64 +169,123 @@ function generateRandomPoints(data: GeoJSON, numPoints: number, maxDistance: num
   return randomPoints;
 }
 
+
+
 // Function to calculate the traffic color based on the distance from the closest traffic point
 function getTrafficColor(roadCoords: number[], trafficPoints: number[][]) {
+  // Calculate the distance between the road coordinates and each traffic point
   const distances = trafficPoints.map(tp => haversineDistance(tp, roadCoords));
-  const minDistance = Math.min(...distances); // Get the minimum distance to the traffic points
 
-  // Normalize the distance to get a value between 0 (red) and 100 (green)
-  const maxDistance = 300; // Arbitrary max distance to normalize (adjust as needed)
+  // Find the minimum distance from the road to any traffic point
+  const minDistance = Math.min(...distances);
+
+  // Normalize the distance to get a traffic value between 0 and 100
+  const maxDistance = 300; // Max distance to normalize
   const trafficValue = Math.max(0, 100 - (minDistance / maxDistance) * 100);
 
+  // Return the traffic color based on the traffic value
   return getRoadColor(trafficValue);
 }
+
 
 // Function to interpolate colors between green and red based on traffic value (0-100)
 function getRoadColor(value: number) {
   const t = value / 100;
   return [
-    Math.floor(255 * t),          // Red increases from 0 to 255
-    Math.floor(255 * (1 - t)),    // Green decreases from 255 to 0
-    0                             // Blue remains constant at 0
+    Math.floor(255 * t),
+    Math.floor(255 * (1 - t)), 
+    0 
   ];
 }
+
+
+// Function to calculate traffic light ratio for intersections
+function calculateTrafficLightRatio(intersection: number[], trafficPoints: number[][]) {
+  
+  const verticalAxisPoints = trafficPoints.filter(([x, y]) => Math.abs(x - intersection[0]) < 0.0005); 
+  const horizontalAxisPoints = trafficPoints.filter(([x, y]) => Math.abs(y - intersection[1]) < 0.0005); 
+  
+  const verticalAxisScore = verticalAxisPoints.length;
+  const horizontalAxisScore = horizontalAxisPoints.length;
+  
+  const totalScore = verticalAxisScore + horizontalAxisScore;
+
+  //edge case 
+  if (totalScore === 0) {
+    return { vertical: 50, horizontal: 50 };
+  }
+
+  // Calculate base ratio for each axis based on total score
+  let verticalRatio = (verticalAxisScore / totalScore) * 100;
+  let horizontalRatio = (horizontalAxisScore / totalScore) * 100;
+
+  // If scores are equal, set to 50-50
+  if (verticalAxisScore === horizontalAxisScore) {
+    verticalRatio = 50;
+    horizontalRatio = 50;
+  } else {
+    // Ensure maximum ratio on one axis is capped at 90%
+    if (verticalRatio > 90) verticalRatio = 90;
+    if (horizontalRatio > 90) horizontalRatio = 90;
+
+    // Adjust the other ratio accordingly (total must equal 100%)
+    verticalRatio = Math.min(verticalRatio, 90);
+    horizontalRatio = 100 - verticalRatio;
+  }
+
+
+  verticalRatio = Math.max(10, Math.min(90, verticalRatio));
+  horizontalRatio = 100 - verticalRatio;
+
+  // Log the calculated ratios
+  console.log(`Intersection at (${intersection[0]}, ${intersection[1]}): Vertical Axis Ratio: ${verticalRatio}%, Horizontal Axis Ratio: ${horizontalRatio}%`);
+
+  return { vertical: verticalRatio, horizontal: horizontalRatio };
+}
+
+
+
 
 function getDeckGlLayers(data: GeoJSON | null, intersections: number[][], trafficPoints: number[][]) {
   if (!data) return [];
 
+  // Log traffic light ratios for each intersection
+  intersections.forEach(intersection => {
+    calculateTrafficLightRatio(intersection, trafficPoints);
+  });
+
   return [
-    // GeoJsonLayer for roads
     new GeoJsonLayer({
       id: 'geojson-layer',
       data,
-      stroked: true,  // Enable stroke for road outlines
+      stroked: true, 
       filled: true,
-      extruded: false, // Set to false if you don’t want 3D
+      extruded: false, 
       pointType: 'circle',
       lineWidthScale: 2,
       lineWidthMinPixels: 1,
-      getFillColor: [160, 160, 180, 200],  // Default fill color
+      getFillColor: [160, 160, 180, 200], 
       getLineColor: (f: Feature) => {
         if (!f.geometry.coordinates || f.geometry.coordinates.length === 0) return [255, 255, 255];
-        // Get the color based on proximity to traffic points
         return getTrafficColor(f.geometry.coordinates[0], trafficPoints);
       },
       getPointRadius: 200,
-      getLineWidth: 2,  // Customize road line width
-      getElevation: 0   // No elevation (for 2D roads)
+      getLineWidth: 2, 
+      getElevation: 0  
     }),
 
     // ScatterplotLayer for intersections
     new ScatterplotLayer({
       id: 'scatterplot-layer',
       data: intersections,
-      getPosition: d => d,  // Use the coordinates of the intersections
-      getRadius: 3,  // Adjust marker sizes
-      getFillColor: [255, 0, 0], // Red markers for intersections
+      getPosition: d => d, 
+      getRadius: 3,
+      getFillColor: [255, 0, 0], 
       pickable: true
     })
   ];
 }
+
 
 export default App;
 
