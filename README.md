@@ -3,4 +3,5 @@ A traffic simulation engine on real toronto street data, with an algorithm that 
 Used as a second place submission to 2024 YEC programming competition.
 
 
-![image](https://github.com/user-attachments/assets/278d4a56-f4da-4174-8466-972f3c5726af)
+![image](https://github.com/user-attachments/assets/0423d34a-b37a-4b21-8a13-c9d68803c066)
+
