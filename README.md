@@ -1,38 +1,6 @@
-# deck.gl Interleaved Overlay Example
+A traffic simulation engine on real toronto street data, with an algorithm that optimizes traffic flows based on simulated data.
 
-An example demonstrating how an interleaved deck.gl overlay can be added
-to a `<Map>` component. (using the `GoogleMapsOverlay` from [@deck.gl/google-maps][]).
+Used as a second place submission to 2024 YEC programming competition.
 
-[@deck.gl/google-maps]: https://deck.gl/docs/api-reference/google-maps/overview
 
-## Google Maps Platform API Key
-
-This example does not come with an API key. Running the examples locally requires a valid API key for the Google Maps Platform.
-See [the official documentation][get-api-key] on how to create and configure your own key.
-
-The API key has to be provided via an environment variable `GOOGLE_MAPS_API_KEY`. This can be done by creating a
-file named `.env` in the example directory with the following content:
-
-```shell title=".env"
-GOOGLE_MAPS_API_KEY="<YOUR API KEY HERE>"
-```
-
-If you are on the CodeSandbox playground you can also choose to [provide the API key like this](https://codesandbox.io/docs/learn/environment/secrets)
-
-## Development
-
-Go into the example-directory and run
-
-```shell
-npm install
-```
-
-To start the example with the local library run
-
-```shell
-npm run start-local
-```
-
-The regular `npm start` task is only used for the standalone versions of the example (CodeSandbox for example)
-
-[get-api-key]: https://developers.google.com/maps/documentation/javascript/get-api-key
+![image](https://github.com/user-attachments/assets/278d4a56-f4da-4174-8466-972f3c5726af)
